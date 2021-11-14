@@ -8,11 +8,11 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 %matplotlib inline
 
-# number of subprocesses to use for data loading
+# 加载数据的子进程的设置数目
 num_workers = 0
 # 每批加载16张图片
 batch_size = 16
-# percentage of training set to use as validation
+# 训练集中抽取校验集的占比
 valid_size = 0.2
 
 # 将数据转换为torch.FloatTensor，并标准化。
@@ -34,7 +34,7 @@ np.random.shuffle(indices)#打乱测试集的数据索引顺序
 split = int(np.floor(valid_size * num_train))#每次训练百分之多少的数据
 train_idx, valid_idx = indices[split:], indices[:split]#把数据分为训练集和校验集
 
-# define samplers for obtaining training and validation batches
+
 #随机划分
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
@@ -99,31 +99,28 @@ class Net(nn.Module):
         self.conv3 = nn.Conv2d(32, 64, 3, padding=1)
         # 最大池化层
         self.pool = nn.MaxPool2d(2, 2)
-        # linear layer (64 * 4 * 4 -> 500)
+        # 全连接层 (64 * 4 * 4 -> 500)
         self.fc1 = nn.Linear(64 * 4 * 4, 500)
-        # linear layer (500 -> 10)
+        # 全连接层 (500 -> 10)
         self.fc2 = nn.Linear(500, 10)
         # dropout层 (p=0.3)
         self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
-        # add sequence of convolutional and max pooling layers
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = self.pool(F.relu(self.conv3(x)))
-        # flatten image input
+        # 对图像输入的向量做形状转换
         x = x.view(-1, 64 * 4 * 4)
-        # add dropout layer
+        # 添加一个dropout层来防止过拟合
         x = self.dropout(x)
-        # add 1st hidden layer, with relu activation function
+        # 隐藏层使用relu激活函数防止梯度消失
         x = F.relu(self.fc1(x))
-        # add dropout layer
         x = self.dropout(x)
-        # add 2nd hidden layer, with relu activation function
         x = self.fc2(x)
         return x
 
-# create a complete CNN
+# 创建CNN
 model = Net()
 print(model)
 
@@ -136,56 +133,54 @@ if train_on_gpu:
 import torch.optim as optim
 # 使用交叉熵损失函数
 criterion = nn.CrossEntropyLoss()
-# 使用随机梯度下降，学习率lr=0.01
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+# 使用随机梯度下降，学习率lr=0.05
+optimizer = optim.SGD(model.parameters(), lr=0.05)
 
 
 
 # 训练模型的次数
 n_epochs = 30
 
-valid_loss_min = np.Inf # track change in validation loss
+valid_loss_min = np.Inf # 记录校验集的最小损失
 
 for epoch in range(1, n_epochs+1):
 
-    # keep track of training and validation loss
+    # 记录训练集和校验集的损失和
     train_loss = 0.0
     valid_loss = 0.0
     
-    ###################
-    # 训练集的模型 #
-    ###################
+ 
+    # 训练集的模型
     model.train()
     for data, target in train_loader:
-        # move tensors to GPU if CUDA is available
+      
         if train_on_gpu:
             data, target = data.cuda(), target.cuda()
-        # clear the gradients of all optimized variables
+        # 情况所有需要被优化参数的梯度值
         optimizer.zero_grad()
         # forward pass: compute predicted outputs by passing inputs to the model
         output = model(data)
-        # calculate the batch loss
+        # 计算每个批量的损失
         loss = criterion(output, target)
-        # backward pass: compute gradient of the loss with respect to model parameters
+        # 损失函数做反向传播运算
         loss.backward()
-        # perform a single optimization step (parameter update)
+        # 更新每个参数的优化
         optimizer.step()
-        # update training loss
+        # 更新训练集的损失和
         train_loss += loss.item()*data.size(0)
         
-    ######################    
-    # 验证集的模型#
-    ######################
+      
+    #验证集的训练
+   
     model.eval()
     for data, target in valid_loader:
-        # move tensors to GPU if CUDA is available
+     
         if train_on_gpu:
             data, target = data.cuda(), target.cuda()
-        # forward pass: compute predicted outputs by passing inputs to the model
         output = model(data)
-        # calculate the batch loss
+        # 计算批量的损失
         loss = criterion(output, target)
-        # update average validation loss 
+        # 更新验证集的损失和
         valid_loss += loss.item()*data.size(0)
     
     # 计算平均损失
@@ -203,35 +198,35 @@ for epoch in range(1, n_epochs+1):
         valid_loss_min = valid_loss
 
 
-# track test loss
+
 test_loss = 0.0
 class_correct = list(0. for i in range(10))
 class_total = list(0. for i in range(10))
 
 model.eval()
-# iterate over test data
+# 迭代整个测试集
 for data, target in test_loader:
-    # move tensors to GPU if CUDA is available
+    # 张量移动到GPU中训练
     if train_on_gpu:
         data, target = data.cuda(), target.cuda()
-    # forward pass: compute predicted outputs by passing inputs to the model
+    # 做前向传递
     output = model(data)
-    # calculate the batch loss
+    # 计算每个批量的Loss
     loss = criterion(output, target)
-    # update test loss 
+    # 更新测试集的loss 
     test_loss += loss.item()*data.size(0)
-    # convert output probabilities to predicted class
+    # 转换成概率的输出结果
     _, pred = torch.max(output, 1)    
-    # compare predictions to true label
+    # 和真实的预测值对比
     correct_tensor = pred.eq(target.data.view_as(pred))
     correct = np.squeeze(correct_tensor.numpy()) if not train_on_gpu else np.squeeze(correct_tensor.cpu().numpy())
-    # calculate test accuracy for each object class
+    # 计算每一个图像类别的准确率情况
     for i in range(batch_size):
         label = target.data[i]
         class_correct[label] += correct[i].item()
         class_total[label] += 1
 
-# average test loss
+# 计算整个测试集整体的平均正确率
 test_loss = test_loss/len(test_loader.dataset)
 print('Test Loss: {:.6f}\n'.format(test_loss))
 
